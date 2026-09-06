@@ -33,7 +33,8 @@ import {
 } from "@App/app/service/service_worker/external_access/bridge";
 import { ExternalAccessController } from "@App/app/service/service_worker/external_access/controller";
 import { ExternalAccessUIService } from "@App/app/service/service_worker/external_access/service";
-import { ExternalAccessConnectClient } from "@App/app/service/offscreen/client";
+import { ContinuationShimConnectClient, ExternalAccessConnectClient } from "@App/app/service/offscreen/client";
+import { ContinuationShimService } from "./continuation_shim";
 import { hookFirefoxEventPageKeepAliveLoop, hookServiceWorkerKeepAliveLoop } from "../offscreen/keep_alive";
 import { NetworkRuleStateDAO } from "@App/app/repo/network_rule";
 import { NetworkRuleService } from "./network_rule";
@@ -170,10 +171,18 @@ export default class ServiceWorkerManager {
       hookServiceWorkerKeepAliveLoop(systemConfig, this.mq, this.offscreenSend);
     }
 
-    // 注入 AgentService 到 GMApi，使 Agent API 走权限验证通道
+    const continuationShim = new ContinuationShimService(
+      this.api.group("continuationShim"),
+      new ContinuationShimConnectClient(this.offscreenSend),
+      runtime.emitEventToTab.bind(runtime)
+    );
+    continuationShim.init();
+
+    // 注入扩展拥有的服务到 GMApi，使脚本只通过声明的 grant 访问窄接口。
     const gmApi = runtime.getGMApi();
     if (gmApi) {
       gmApi.setAgentService(agent);
+      gmApi.setContinuationShimService(continuationShim);
     }
 
     // 外部接入桥接：运行期开关 external_access_enabled（由 ExternalAccessController.initialize 内部监听），默认关闭，

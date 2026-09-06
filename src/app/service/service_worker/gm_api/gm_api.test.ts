@@ -142,6 +142,12 @@ describe.concurrent("GM API 注册完整性", () => {
       expect(PermissionVerifyApiGet(name), `${name} 应已注册`).toBeDefined();
     }
   });
+
+  it.concurrent("continuation shim API 应绑定到窄 grant", () => {
+    const api = PermissionVerifyApiGet("CAT_continuation");
+    expect(api).toBeDefined();
+    expect(api!.param.link).toContain("CAT.continuation");
+  });
 });
 
 describe("window.focus", () => {

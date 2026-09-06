@@ -5,6 +5,11 @@ import type { MessageSend } from "@Packages/message/types";
 import { type VSCodeConnectParam } from "./vscode-connect";
 import { type ExternalAccessConnectParam } from "./external-access-connect";
 import type { WSEnvelope } from "../service_worker/external_access/types";
+import type {
+  ContinuationShimConnectPort,
+  ContinuationShimMessage,
+  ContinuationShimStatus,
+} from "../service_worker/continuation_shim";
 
 export function preparationSandbox(windowMessage: WindowMessage) {
   return sendMessage(windowMessage, "offscreen/preparationSandbox");
@@ -138,5 +143,27 @@ export class ExternalAccessConnectClient extends Client {
 
   send(envelope: WSEnvelope): Promise<void> {
     return this.do("send", envelope);
+  }
+}
+
+export class ContinuationShimConnectClient extends Client implements ContinuationShimConnectPort {
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "offscreen/continuationShimConnect");
+  }
+
+  ensure(): Promise<void> {
+    return this.do("ensure");
+  }
+
+  disconnect(): Promise<void> {
+    return this.do("disconnect");
+  }
+
+  send(message: ContinuationShimMessage): Promise<void> {
+    return this.do("send", message);
+  }
+
+  status(): Promise<ContinuationShimStatus> {
+    return this.doThrow<ContinuationShimStatus>("status");
   }
 }

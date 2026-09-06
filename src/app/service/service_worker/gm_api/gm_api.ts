@@ -60,6 +60,7 @@ import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
 import { mightPrepareSetClipboard, setClipboard } from "../clipboard";
 import { nativePageWindowOpen } from "../../offscreen/gm_api";
 import type { AgentService } from "@App/app/service/agent/service_worker/agent";
+import type { ContinuationShimService } from "../continuation_shim";
 // 导入 Agent API 以触发装饰器注册
 // 注意：不能使用 import "./gm_agent"，sideEffects 配置会导致 tree-shaking 移除纯副作用导入
 import GMAgentApi from "./gm_agent";
@@ -74,6 +75,8 @@ import GMAgentModelApi from "./gm_agent_model";
 void GMAgentModelApi;
 import GMAgentOPFSApi from "./gm_agent_opfs";
 void GMAgentOPFSApi;
+import GMContinuationApi from "./gm_continuation";
+void GMContinuationApi;
 import { nextSessionRuleId, removeSessionRuleIdEntry } from "./dnr_id_controller";
 import type { DownloadCallback } from "../download";
 import { detachDownloadCallback, startDownload } from "../download";
@@ -368,6 +371,7 @@ export default class GMApi {
   subscribeDAO: SubscribeDAO = new SubscribeDAO();
 
   agentService?: AgentService;
+  continuationShimService?: ContinuationShimService;
 
   constructor(
     private systemConfig: SystemConfig,
@@ -383,6 +387,10 @@ export default class GMApi {
 
   setAgentService(agentService: AgentService) {
     this.agentService = agentService;
+  }
+
+  setContinuationShimService(continuationShimService: ContinuationShimService) {
+    this.continuationShimService = continuationShimService;
   }
 
   // PermissionVerify.API

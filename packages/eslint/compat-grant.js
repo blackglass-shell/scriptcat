@@ -12,6 +12,7 @@ const compatMap = {
   "CAT.agent.dom": [{ type: "scriptcat", versionConstraint: ">=1.4.0-beta" }],
   "CAT.agent.task": [{ type: "scriptcat", versionConstraint: ">=1.4.0-beta" }],
   "CAT.agent.opfs": [{ type: "scriptcat", versionConstraint: ">=1.4.0-beta" }],
+  "CAT.continuation": [{ type: "scriptcat", versionConstraint: ">=1.5.0-beta.3" }],
   ...compat_grant.compatMap,
 };
 

@@ -10,6 +10,8 @@ import GMApi from "./gm_api";
 import { MessageQueue, type IMessageQueue } from "@Packages/message/message_queue";
 import { VSCodeConnect } from "./vscode-connect";
 import { ExternalAccessConnect } from "./external-access-connect";
+import { ContinuationShimConnect } from "./continuation-shim-connect";
+import { ContinuationShimRelayClient } from "../service_worker/client";
 import { HtmlExtractorService } from "./html_extractor";
 import { makeBlobURL } from "@App/pkg/utils/utils";
 import { type SandboxChannelHealth } from "./client";
@@ -139,6 +141,11 @@ export class BackgroundEnvManagerBase {
       this.extMsgSender
     );
     externalAccessConnect.init();
+    const continuationShimConnect = new ContinuationShimConnect(
+      this.offscreenServer.group("continuationShimConnect"),
+      new ContinuationShimRelayClient(this.extMsgSender)
+    );
+    continuationShimConnect.init();
     const htmlExtractor = new HtmlExtractorService(this.offscreenServer.group("htmlExtractor"));
     htmlExtractor.init();
 

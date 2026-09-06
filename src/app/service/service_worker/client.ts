@@ -34,6 +34,7 @@ import { type TSetValuesParams } from "./value";
 import type { LocalBackupExport } from "./synchronize";
 import type { ExternalAccessUIService } from "./external_access/service";
 import type { WSEnvelope } from "./external_access/types";
+import type { ContinuationShimMessage, ContinuationShimStatus } from "./continuation_shim";
 import type {
   NetworkRuleMutationResult,
   NetworkRuleCreateInput,
@@ -698,5 +699,19 @@ export class ExternalAccessConnectRelayClient extends Client {
 
   disconnected(): Promise<void> {
     return this.do("disconnected");
+  }
+}
+
+export class ContinuationShimRelayClient extends Client {
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/continuationShim");
+  }
+
+  message(message: ContinuationShimMessage): Promise<void> {
+    return this.do("message", message);
+  }
+
+  status(status: ContinuationShimStatus): Promise<void> {
+    return this.do("status", status);
   }
 }
