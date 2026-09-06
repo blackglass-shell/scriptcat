@@ -45,8 +45,29 @@ function assertOutboundMessage(message: ContinuationShimMessage): void {
   }
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function sessionKey(value: unknown): string | null {
+  const record = asRecord(value);
+  if (!record) return null;
+  const address = asRecord(record.address) ?? record;
+  const parts = ["hostInstanceId", "browserInstanceId", "tabInstanceId", "sessionId"].map((key) => address[key]);
+  if (parts.some((part) => typeof part !== "string" || part.length === 0)) return null;
+  return parts.join("/");
+}
+
+function revisionOf(value: unknown): number {
+  const revision = Number(asRecord(value)?.revision ?? 0);
+  return Number.isFinite(revision) ? revision : 0;
+}
+
 export class ContinuationShimService {
   private readonly subscribers = new Map<string, Subscriber>();
+  private readonly sessions = new Map<string, Record<string, unknown>>();
+  private hostHello: ContinuationShimMessage | null = null;
+  private snapshotSeen = false;
   private status: ContinuationShimStatus = "DISCONNECTED";
 
   constructor(
@@ -72,6 +93,7 @@ export class ContinuationShimService {
     switch (request.action) {
       case "connect":
         await this.subscribe(uuid, extSender);
+        await this.replayBootstrap(uuid, extSender);
         return { ...extSender, status: this.status } satisfies ContinuationShimSubscriptionInfo;
       case "disconnect":
         await this.unsubscribe(uuid, extSender);
@@ -111,8 +133,69 @@ export class ContinuationShimService {
     }
   }
 
+  private updateBootstrapState(message: ContinuationShimMessage): void {
+    if (message.type === "HOST_HELLO") {
+      this.hostHello = message;
+      return;
+    }
+
+    if (message.type === "SESSION_SNAPSHOT") {
+      this.sessions.clear();
+      for (const session of Array.isArray(message.sessions) ? message.sessions : []) {
+        const record = asRecord(session);
+        const key = sessionKey(record);
+        if (record && key) this.sessions.set(key, record);
+      }
+      this.snapshotSeen = true;
+      return;
+    }
+
+    if (message.type === "SESSION_UPSERT") {
+      const record = asRecord(message.session);
+      const key = sessionKey(record);
+      if (!record || !key) return;
+      const previous = this.sessions.get(key);
+      if (!previous || revisionOf(record) >= revisionOf(previous)) this.sessions.set(key, record);
+      return;
+    }
+
+    if (message.type === "SESSION_HEARTBEAT") {
+      const key = sessionKey(message.address);
+      const previous = key ? this.sessions.get(key) : undefined;
+      if (!key || !previous) return;
+      const heartbeatAt = Math.max(Number(previous.heartbeatAt ?? 0), Number(message.heartbeatAt ?? 0));
+      this.sessions.set(key, { ...previous, heartbeatAt });
+      return;
+    }
+
+    if (message.type === "SESSION_REMOVE") {
+      const key = sessionKey(message.address);
+      const previous = key ? this.sessions.get(key) : undefined;
+      if (key && (!previous || revisionOf(message) >= revisionOf(previous))) this.sessions.delete(key);
+    }
+  }
+
+  private async replayBootstrap(uuid: string, sender: ExtMessageSender): Promise<void> {
+    if (!this.snapshotSeen) return;
+    if (this.hostHello) {
+      await this.emitToTab(sender, {
+        uuid,
+        event: "continuationShim",
+        eventId: "message",
+        data: this.hostHello,
+      });
+    }
+    await this.emitToTab(sender, {
+      uuid,
+      event: "continuationShim",
+      eventId: "message",
+      data: { type: "SESSION_SNAPSHOT", sessions: [...this.sessions.values()] },
+    });
+  }
+
   async handleRelayMessage(message: ContinuationShimMessage): Promise<void> {
     if (!message || typeof message !== "object" || typeof message.type !== "string") return;
+    this.updateBootstrapState(message);
     const subscribers = [...this.subscribers.entries()];
     const results = await Promise.allSettled(
       subscribers.map(([, subscriber]) =>

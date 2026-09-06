@@ -69,6 +69,36 @@ describe("ContinuationShimService", () => {
     );
   });
 
+  it("replays the current bootstrap state to a tab that joins an already-connected socket", async () => {
+    const { service, emitEvent } = makeHarness();
+    const address = {
+      hostInstanceId: "host-1",
+      browserInstanceId: "browser-1",
+      tabInstanceId: "tab-1",
+      sessionId: "session-1",
+    };
+    await service.handleApi("script-1", { action: "connect" }, makeSender(1, "doc-1"));
+    await service.handleRelayMessage({ type: "HOST_HELLO", host: { hostInstanceId: "host-1" } });
+    await service.handleRelayMessage({
+      type: "SESSION_SNAPSHOT",
+      sessions: [{ address, revision: 1, heartbeatAt: 10 }],
+    });
+    await service.handleRelayMessage({
+      type: "SESSION_UPSERT",
+      session: { address, revision: 2, heartbeatAt: 20, state: "READY" },
+    });
+    emitEvent.mockClear();
+
+    await service.handleApi("script-1", { action: "connect" }, makeSender(2, "doc-2"));
+
+    const tab2Messages = emitEvent.mock.calls.filter(([to]) => to.tabId === 2).map(([, request]) => request.data);
+    expect(tab2Messages[0]).toMatchObject({ type: "HOST_HELLO", host: { hostInstanceId: "host-1" } });
+    expect(tab2Messages[1]).toMatchObject({
+      type: "SESSION_SNAPSHOT",
+      sessions: [expect.objectContaining({ address, revision: 2, heartbeatAt: 20, state: "READY" })],
+    });
+  });
+
   it("removes subscriptions when Chrome reports the physical tab closed", async () => {
     const { service, connector } = makeHarness();
     await service.handleApi("script-1", { action: "connect" }, makeSender(77));
