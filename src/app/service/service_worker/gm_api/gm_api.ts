@@ -301,6 +301,21 @@ export const getExtensionSiteAccessOriginPattern = (url: URL): string | undefine
   return `${url.protocol}//${url.hostname}/*`;
 };
 
+export const pruneClosedTabData = (
+  tabData: { [key: number]: any } | undefined,
+  liveTabIds: Iterable<number>
+): { [key: number]: any } => {
+  const live = new Set(liveTabIds);
+  const next: { [key: number]: any } = {};
+  for (const [key, value] of Object.entries(tabData || {})) {
+    const tabId = Number(key);
+    if (Number.isInteger(tabId) && live.has(tabId)) {
+      next[tabId] = value;
+    }
+  }
+  return next;
+};
+
 type NotificationData = {
   uuid: string;
   details: GMTypes.NotificationDetails;
@@ -1266,10 +1281,15 @@ export default class GMApi {
   }
 
   @PermissionVerify.API()
-  GM_getTabs(request: GMApiRequest<void>, _sender: IGetSender) {
+  async GM_getTabs(request: GMApiRequest<void>, _sender: IGetSender) {
+    const liveTabIds = (await chrome.tabs.query({}))
+      .map((tab) => tab.id)
+      .filter((id): id is number => typeof id === "number");
+
     return cacheInstance.tx(`GM_getTab:${request.uuid}`, (tabData: { [key: number]: any } | undefined, tx) => {
-      if (!tabData) tx.set((tabData = {}));
-      return tabData;
+      const next = pruneClosedTabData(tabData, liveTabIds);
+      tx.set(next);
+      return next;
     });
   }
 

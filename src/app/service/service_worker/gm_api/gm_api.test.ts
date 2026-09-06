@@ -6,6 +6,7 @@ import GMApi, {
   getConnectMatched,
   getExtensionSiteAccessOriginPattern,
   mergeCookieHeader,
+  pruneClosedTabData,
 } from "./gm_api";
 import { PermissionVerifyApiGet, type ConfirmParam } from "../permission_verify";
 import type { GMApiRequest } from "../types";
@@ -19,6 +20,25 @@ const makeSender = (url?: string): IGetSender => ({
   isType: (_type: any) => false,
   getExtMessageSender: () => null as unknown as ExtMessageSender,
   getConnect: () => undefined,
+});
+
+describe("pruneClosedTabData", () => {
+  it("drops cached GM tab records for browser tabs that no longer exist", () => {
+    const cached = {
+      11: { tabInstanceId: "alive-a" },
+      22: { tabInstanceId: "closed" },
+      33: { tabInstanceId: "alive-b" },
+    };
+
+    expect(pruneClosedTabData(cached, [11, 33])).toEqual({
+      11: cached[11],
+      33: cached[33],
+    });
+  });
+
+  it("returns an empty object when no cached tab is still open", () => {
+    expect(pruneClosedTabData({ 44: { stale: true } }, [])).toEqual({});
+  });
 });
 
 describe.concurrent("isConnectMatched", () => {
